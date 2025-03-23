@@ -11,23 +11,34 @@
 #define STATE_MOVE_LEFT     2
 #define STATE_KICK_HIGH     3
 #define STATE_KICK_LOW      4
-#define STATE_PUNCH         5
-#define STATE_HIT           6
-#define STATE_DIE           7
+#define STATE_PUNCH_HIGH    5
+#define STATE_BLOCK_HIGH    6
+#define STATE_BLOCK_LOW     7
+#define STATE_HIT           8
+#define STATE_DIE           9
 
 unsigned char p1_gx, p1_gy, p1_x, p1_y, p2_gx, p2_gy, p2_x, p2_y, p1_state, p2_state;
-unsigned char counter, p1_step, p2_step, p1_max_step, p2_max_step, p1_strike, p2_strike, p1_health, p2_health;
+unsigned char p1_block_high, p1_block_low, p2_block_high, p2_block_low;
+unsigned char counter, p1_step, p2_step, p1_max_step, p2_max_step, p1_strike, p2_strike, p1_health, p2_health, p1_win, p2_win;
 SpriteSlot p1_sprite, p2_sprite, bg_sprite;
 unsigned char *p1_gtx, *p2_gtx, *p1_frame, *p2_frame;
-unsigned char tmp;
+unsigned char tmp, game_over, animation_over;
 
-unsigned char max_step[] = {5, 5, 5, 9, 9, 6, 3, 9};
+unsigned char max_step[10] = {
+    5,      // Idle
+    5, 5,   // Move
+    9, 9,   // Kick
+    6,      // Punch
+    4, 8,   // Block
+    4,      // Hit
+    9       // Die
+};
 
-unsigned char frame_gx[] = {0, 42, 84, 0, 42, 84, 0, 84, 42 };
-unsigned char frame_gy[] = {0, 0, 0, 40, 40, 40, 80, 80, 80};
+unsigned char frame_gx[] = {0, 42, 84,  0, 42, 84,  0, 42, 84};
+unsigned char frame_gy[] = {0,  0,  0, 40, 40, 40, 80, 80, 80};
 
-#define SET_P1_STATE(STATE, SPRITE) p1_state = STATE; p1_step = 0; p1_gx = 0; p1_gy = 0; p1_sprite = SPRITE; p1_max_step = max_step[STATE];
-#define SET_P2_STATE(STATE, SPRITE) p2_state = STATE; p2_step = 0; p2_gx = 0; p2_gy = 0; p2_sprite = SPRITE; p2_max_step = max_step[STATE];
+#define SET_P1_STATE(STATE, SPRITE) p1_state = STATE; p1_step = 0; p1_gx = 0; p1_gy = 0; p1_sprite = SPRITE; p1_max_step = max_step[STATE]; p1_block_high = 0; p1_block_low = 0;
+#define SET_P2_STATE(STATE, SPRITE) p2_state = STATE; p2_step = 0; p2_gx = 0; p2_gy = 0; p2_sprite = SPRITE; p2_max_step = max_step[STATE]; p2_block_high = 0; p2_block_low = 0;
 
 void breakpoint() {}
 
@@ -39,6 +50,15 @@ void reset_players() {
     p2_y = 60;
     p1_health = 58;
     p2_health = 58;
+}
+
+void wait_release_buttons() {
+    while (1) {
+        update_inputs();
+        if (!(player1_buttons & INPUT_MASK_ALL_KEYS)) {
+            return;
+        }
+    }
 }
 
 int main () {
@@ -54,6 +74,7 @@ int main () {
     SpriteSlot kicklow1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__kicklow1_bmp_load_list);
     SpriteSlot punch1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__punch1_bmp_load_list);
     SpriteSlot block1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__block1_bmp_load_list);
+    SpriteSlot hit1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__hit1_bmp_load_list);
     SpriteSlot die1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__die1_bmp_load_list);
 
     SpriteSlot idle2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__idle2_bmp_load_list);
@@ -62,6 +83,7 @@ int main () {
     SpriteSlot kicklow2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__kicklow2_bmp_load_list);
     SpriteSlot punch2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__punch2_bmp_load_list);
     SpriteSlot block2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__block2_bmp_load_list);
+    SpriteSlot hit2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__hit2_bmp_load_list);
     SpriteSlot die2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__die2_bmp_load_list);
 
     // Forever loop
@@ -84,14 +106,13 @@ int main () {
     }
 
     // Wait until the player releases any button
-    while (1) {
-        update_inputs();
-        if (!(player1_buttons & INPUT_MASK_ALL_KEYS)) {
-            break;
-        }
-    }
+    wait_release_buttons();
 
     reset_players();
+    p1_win = 0;
+    p2_win = 0;
+    game_over = 0;
+    animation_over = 0;
     SET_P1_STATE(STATE_IDLE, idle1_sprite);
     SET_P2_STATE(STATE_IDLE, idle2_sprite);
 
@@ -119,44 +140,50 @@ int main () {
         if (p1_state == STATE_DIE) {
             queue_draw_sprite(14,48,  81,17, 0,20,elts_sprite);      // Player
             queue_draw_sprite(100,42, 21,46, 109,20,elts_sprite);    // 2
-            queue_draw_sprite(37,70,  53,20, 0,40,elts_sprite);    // Wins
         } else if (p2_state == STATE_DIE) {
             queue_draw_sprite(14,48,  81,17, 0,20,elts_sprite);      // Player
             queue_draw_sprite(100,42, 12,46, 90,20,elts_sprite);    // 1
+        }
+        if (game_over) {
             queue_draw_sprite(37,70,  53,20, 0,40,elts_sprite);    // Wins
         }
         queue_clear_border(0);
 
         // Update the player sprites
-        counter++;
-        if (!(counter & 7)) {
-            p1_step++;
-            if (p1_state == STATE_DIE) {
-                if (p1_step < p1_max_step) {
-                    p1_gx = frame_gx[p1_step];
-                    p1_gy = frame_gy[p1_step];
+        if (!animation_over) {
+            counter++;
+            if (!(counter & 7)) {
+                p1_step++;
+                if (p1_step == 8) {
+                    breakpoint();
                 }
-            } else {
-                if (p1_step == p1_max_step) {
-                    SET_P1_STATE(STATE_IDLE, idle1_sprite);
+                if (p1_state == STATE_DIE) {
+                    if (p1_step < p1_max_step) {
+                        p1_gx = frame_gx[p1_step];
+                        p1_gy = frame_gy[p1_step];
+                    }
                 } else {
-                    p1_gx = frame_gx[p1_step];
-                    p1_gy = frame_gy[p1_step];
+                    if (p1_step == p1_max_step) {
+                        SET_P1_STATE(STATE_IDLE, idle1_sprite);
+                    } else {
+                        p1_gx = frame_gx[p1_step];
+                        p1_gy = frame_gy[p1_step];
+                    }
                 }
-            }
 
-            p2_step++;
-            if (p2_state == STATE_DIE) {
-                if (p2_step < p2_max_step) {
-                    p2_gx = frame_gx[p2_step];
-                    p2_gy = frame_gy[p2_step];
-                }
-            } else {
-                if (p2_step == p2_max_step) {
-                    SET_P2_STATE(STATE_IDLE, idle2_sprite);
+                p2_step++;
+                if (p2_state == STATE_DIE) {
+                    if (p2_step < p2_max_step) {
+                        p2_gx = frame_gx[p2_step];
+                        p2_gy = frame_gy[p2_step];
+                    }
                 } else {
-                    p2_gx = frame_gx[p2_step];
-                    p2_gy = frame_gy[p2_step];
+                    if (p2_step == p2_max_step) {
+                        SET_P2_STATE(STATE_IDLE, idle2_sprite);
+                    } else {
+                        p2_gx = frame_gx[p2_step];
+                        p2_gy = frame_gy[p2_step];
+                    }
                 }
             }
         }
@@ -182,7 +209,16 @@ int main () {
                     SET_P1_STATE(STATE_KICK_HIGH, kick1_sprite);
                 }
             } else if (player1_buttons & INPUT_MASK_A) {
-                SET_P1_STATE(STATE_PUNCH, punch1_sprite);
+                SET_P1_STATE(STATE_PUNCH_HIGH, punch1_sprite);
+            } else if (player1_buttons & INPUT_MASK_C) {
+                if (player1_buttons & INPUT_MASK_UP) {
+                    SET_P1_STATE(STATE_BLOCK_HIGH, block1_sprite);
+                } else if (player1_buttons & INPUT_MASK_DOWN) {
+                    SET_P1_STATE(STATE_BLOCK_LOW, block1_sprite);
+                    p1_step = 4;
+                    p1_gx = 42;
+                    p1_gy = 40;
+                }
             }
             break;
         case STATE_MOVE_RIGHT:
@@ -200,7 +236,7 @@ int main () {
                 p1_x-=2;
             }
             break;
-        case STATE_PUNCH:
+        case STATE_PUNCH_HIGH:
             if (p1_step == 5) {
                 p1_strike = p1_x + 35;
             }
@@ -219,15 +255,25 @@ int main () {
                 p1_strike = p1_x + 39;
             }
             break;
+        case STATE_BLOCK_HIGH:
+            if (p1_step != 0) p1_block_high = 1;
+            break;
+        case STATE_BLOCK_LOW:
+            if (p1_step != 4) p1_block_low = 1;
+            break;
         case STATE_DIE:
             if (p1_step < 9) {
                 if (!(counter & 7)) {
                     p1_x -= 4;
                 }
             } else if (p1_step == 32) {
-                reset_players();
-                SET_P1_STATE(STATE_IDLE, idle1_sprite);
-                SET_P2_STATE(STATE_IDLE, idle2_sprite);            
+                if (!game_over) {
+                    reset_players();
+                    SET_P1_STATE(STATE_IDLE, idle1_sprite);
+                    SET_P2_STATE(STATE_IDLE, idle2_sprite);            
+                } else {
+                    animation_over = 1;
+                }
             }
             break;
         }
@@ -248,7 +294,7 @@ int main () {
                     SET_P2_STATE(STATE_KICK_HIGH, kick2_sprite);
                 }
             } else if (player2_buttons & INPUT_MASK_A) {
-                SET_P2_STATE(STATE_PUNCH, punch2_sprite);
+                SET_P2_STATE(STATE_PUNCH_HIGH, punch2_sprite);
             }
             break;
         case STATE_MOVE_RIGHT:
@@ -266,7 +312,7 @@ int main () {
                 p2_x+=2;
             }
             break;
-        case STATE_PUNCH:
+        case STATE_PUNCH_HIGH:
             if (p2_step == 5) {
                 p2_strike = p2_x + 7;
             }
@@ -285,41 +331,62 @@ int main () {
                 p2_strike = p2_x + 3;
             }
             break;
+        case STATE_BLOCK_HIGH:
+            if (p2_step != 0) p2_block_high = 1;
+            break;
+        case STATE_BLOCK_LOW:
+            if (p2_step != 4) p2_block_low = 1;
+            break;
         case STATE_DIE:
             if (p2_step < 9) {
                 if (!(counter & 7)) {
                     p2_x += 4;
                 }
             } else if (p2_step == 32) {
-                reset_players();
-                SET_P1_STATE(STATE_IDLE, idle1_sprite);
-                SET_P2_STATE(STATE_IDLE, idle2_sprite);            
+                if (!game_over) {
+                    reset_players();
+                    SET_P1_STATE(STATE_IDLE, idle1_sprite);
+                    SET_P2_STATE(STATE_IDLE, idle2_sprite);            
+                } else {
+                    animation_over = 1;
+                }
             }
             break;
         }
 
-        if (p1_strike && p2_state != STATE_HIT) {
+        if (p1_strike && p2_state != STATE_HIT && p2_state != STATE_DIE) {
             if (p1_strike >= p2_x + 20) {
                 if (p2_health <= 10) {
                     p2_health = 0;
+                    p1_win++;
+                    if (p1_win == 2) {
+                        game_over = 1;
+                    }
                     SET_P2_STATE(STATE_DIE, die2_sprite);
                 } else {
                     p2_x++;
                     p2_health -= 10;
-                    SET_P2_STATE(STATE_HIT, walk2_sprite);
+                    SET_P2_STATE(STATE_HIT, hit2_sprite);
                 }
             }
-        }
+        } else if (p2_strike && p1_state != STATE_HIT && p1_state != STATE_DIE) {
+            if (((p2_state == STATE_PUNCH_HIGH || p2_state == STATE_KICK_HIGH) && p1_state == STATE_BLOCK_HIGH) ||
+                (p2_state == STATE_KICK_LOW && p1_state == STATE_BLOCK_LOW)) {
 
-        if (p2_strike && p1_state != STATE_HIT) {
-            if (p2_strike <= p1_x + 22) {
-                if (p1_health <= 10) {
-                    p1_health = 0;
-                    SET_P1_STATE(STATE_DIE, die1_sprite);
-                } else {
-                    p1_x--;
-                    p1_health -= 10;
-                    SET_P1_STATE(STATE_HIT, walk1_sprite);
+            } else {
+                if (p2_strike <= p1_x + 22) {
+                    if (p1_health <= 10) {
+                        p1_health = 0;
+                        p2_win++;
+                        if (p2_win == 2) {
+                            game_over = 1;
+                        }
+                        SET_P1_STATE(STATE_DIE, die1_sprite);
+                    } else {
+                        p1_x--;
+                        p1_health -= 10;
+                        SET_P1_STATE(STATE_HIT, hit1_sprite);
+                    }
                 }
             }
         }
@@ -330,6 +397,9 @@ int main () {
  
     } // Game loop
 
+    // Wait until the player releases any button
+    wait_release_buttons();
+ 
   } // Forever loop
  
   return (0);                                     //  We should never get here!
