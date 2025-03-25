@@ -1,10 +1,12 @@
 #include "gt/gametank.h"
 #include "gt/gfx/draw_queue.h"
 #include "gt/input.h"
+#include "gt/audio/music.h"
 #include "gt/feature/random/random.h"
 #include "gen/assets/gt_fighters.h"
 #include "gen/assets/player1.h"
 #include "gen/assets/player2.h"
+#include "gen/assets/sfx.h"
 
 #define STATE_IDLE  0
 #define STATE_MOVE_RIGHT    1
@@ -18,7 +20,7 @@
 #define STATE_KO            9
 
 unsigned char p1_gx, p1_gy, p1_x, p1_y, p2_gx, p2_gy, p2_x, p2_y, p1_state, p2_state;
-unsigned char p1_block_high, p1_block_low, p2_block_high, p2_block_low;
+unsigned char p1_block_high, p1_block_low, p2_block_high, p2_block_low, p1_blocking, p2_blocking;
 unsigned char counter, p1_step, p2_step, p1_max_step, p2_max_step, p1_strike, p2_strike, p1_health, p2_health, p1_win, p2_win;
 SpriteSlot p1_sprite, p2_sprite, bg_sprite;
 unsigned char *p1_gtx, *p2_gtx, *p1_frame, *p2_frame;
@@ -44,12 +46,14 @@ void breakpoint() {}
 
 void reset_players() {
     counter = 0;
-    p1_x = 50;
+    p1_x = 14;
     p1_y = 60;
-    p2_x = 80;
+    p2_x = 72;
     p2_y = 60;
     p1_health = 58;
     p2_health = 58;
+    p1_blocking = 0;
+    p2_blocking = 0;
 }
 
 void wait_release_buttons() {
@@ -85,6 +89,8 @@ int main () {
     SpriteSlot block2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__block2_bmp_load_list);
     SpriteSlot hit2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__hit2_bmp_load_list);
     SpriteSlot ko2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__ko2_bmp_load_list);
+
+    init_music();
 
     // Forever loop
     while (1) {
@@ -165,6 +171,8 @@ int main () {
                 } else {
                     if (p1_step == p1_max_step) {
                         SET_P1_STATE(STATE_IDLE, idle1_sprite);
+                        p1_block_high = 0; p1_block_low = 0;
+                        p1_blocking = 0;
                     } else {
                         p1_gx = frame_gx[p1_step];
                         p1_gy = frame_gy[p1_step];
@@ -180,6 +188,7 @@ int main () {
                 } else {
                     if (p2_step == p2_max_step) {
                         SET_P2_STATE(STATE_IDLE, idle2_sprite);
+                        p2_blocking = 0;
                     } else {
                         p2_gx = frame_gx[p2_step];
                         p2_gy = frame_gy[p2_step];
@@ -222,12 +231,12 @@ int main () {
             }
             break;
         case STATE_MOVE_RIGHT:
-            if (!(counter & 7)) {
+            if (!(counter & 7) && ((p1_x & 0x80) || ((p1_x < 70) && (p1_x < p2_x - 10)))) {
                 p1_x++;
             }
             break;
         case STATE_MOVE_LEFT:
-            if (!(counter & 7)) {
+            if (!(counter & 7) && (p1_x > 246 || !(p1_x & 0x80))) {
                 p1_x--;
             }
             break;
@@ -295,15 +304,24 @@ int main () {
                 }
             } else if (player2_buttons & INPUT_MASK_A) {
                 SET_P2_STATE(STATE_PUNCH_HIGH, punch2_sprite);
-            }
+            } else if (player2_buttons & INPUT_MASK_C) {
+                if (player2_buttons & INPUT_MASK_UP) {
+                    SET_P2_STATE(STATE_BLOCK_HIGH, block2_sprite);
+                } else if (player1_buttons & INPUT_MASK_DOWN) {
+                    SET_P2_STATE(STATE_BLOCK_LOW, block2_sprite);
+                    p2_step = 4;
+                    p2_gx = 42;
+                    p2_gy = 40;
+                }
+            }            
             break;
         case STATE_MOVE_RIGHT:
-            if (!(counter & 7)) {
+            if (!(counter & 7) && (p2_x < 96)) {
                 p2_x++;
             }
             break;
         case STATE_MOVE_LEFT:
-            if (!(counter & 7)) {
+            if (!(counter & 7) && (p2_x > 16) && ((p2_x > p1_x + 10) || (p1_x & 0x80))) {
                 p2_x--;
             }
             break;
@@ -354,27 +372,49 @@ int main () {
             break;
         }
 
+        // Player 1 hits
         if (p1_strike && p2_state != STATE_HIT && p2_state != STATE_KO) {
+            // Player 2 is in range
             if (p1_strike >= p2_x + 20) {
-                if (p2_health <= 10) {
-                    p2_health = 0;
-                    p1_win++;
-                    if (p1_win == 2) {
-                        game_over = 1;
+                // Player 2 blocks
+                if (((p1_state == STATE_PUNCH_HIGH || p1_state == STATE_KICK_HIGH) && p2_state == STATE_BLOCK_HIGH) ||
+                    (p1_state == STATE_KICK_LOW && p2_state == STATE_BLOCK_LOW)) {
+                    if (!p2_blocking) {
+                        play_sound_effect(ASSET__sfx__blocked_sfx_ID, 0);
+                        p2_blocking = 1;
                     }
-                    SET_P2_STATE(STATE_KO, ko2_sprite);
-                } else {
-                    p2_x++;
-                    p2_health -= 10;
-                    SET_P2_STATE(STATE_HIT, hit2_sprite);
+                // Player 2 is hit
+                } else {                    
+                    // Knocked out!
+                    if (p2_health <= 10) {
+                        p2_health = 0;
+                        p1_win++;
+                        if (p1_win == 2) {
+                            game_over = 1;
+                        }
+                        SET_P2_STATE(STATE_KO, ko2_sprite);
+                        play_sound_effect(ASSET__sfx__win_sfx_ID, 0);
+                    } else {
+                        p2_x++;
+                        p2_health -= 10;
+                        SET_P2_STATE(STATE_HIT, hit2_sprite);
+                        play_sound_effect(ASSET__sfx__hit_sfx_ID, 0);
+                    }
                 }
             }
+        // Player 2 hits
         } else if (p2_strike && p1_state != STATE_HIT && p1_state != STATE_KO) {
-            if (((p2_state == STATE_PUNCH_HIGH || p2_state == STATE_KICK_HIGH) && p1_state == STATE_BLOCK_HIGH) ||
-                (p2_state == STATE_KICK_LOW && p1_state == STATE_BLOCK_LOW)) {
-
-            } else {
-                if (p2_strike <= p1_x + 22) {
+            // Player 1 is in range
+            if ((p2_strike <= p1_x + 22) && !(p1_x & 0x80)) {
+                if (((p2_state == STATE_PUNCH_HIGH || p2_state == STATE_KICK_HIGH) && p1_state == STATE_BLOCK_HIGH) ||
+                    (p2_state == STATE_KICK_LOW && p1_state == STATE_BLOCK_LOW)) {
+                    if (!p1_blocking) {
+                        play_sound_effect(ASSET__sfx__blocked_sfx_ID, 0);
+                        p1_blocking = 1;
+                    }
+                // Player 1 is hit
+                } else {
+                    // Knocked out!
                     if (p1_health <= 10) {
                         p1_health = 0;
                         p2_win++;
@@ -382,10 +422,12 @@ int main () {
                             game_over = 1;
                         }
                         SET_P1_STATE(STATE_KO, ko1_sprite);
+                        play_sound_effect(ASSET__sfx__win_sfx_ID, 0);
                     } else {
                         p1_x--;
                         p1_health -= 10;
                         SET_P1_STATE(STATE_HIT, hit1_sprite);
+                        play_sound_effect(ASSET__sfx__hit_sfx_ID, 0);
                     }
                 }
             }
@@ -393,6 +435,7 @@ int main () {
 
         await_draw_queue();
         await_vsync(1);
+        tick_music();
         flip_pages();
  
     } // Game loop
