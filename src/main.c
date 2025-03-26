@@ -19,12 +19,25 @@
 #define STATE_HIT           8
 #define STATE_KO            9
 
-unsigned char p1_gx, p1_gy, p1_x, p1_y, p2_gx, p2_gy, p2_x, p2_y, p1_state, p2_state;
+#define AI_NONE             0
+#define AI_ATTACK_PUNCH     1
+#define AI_ATTACK_KICK_HIGH 2
+#define AI_ATTACK_KICK_LOW  3
+#define AI_BLOCK_HIGH       4
+#define AI_BLOCK_LOW        5
+#define AI_RETREAT          6
+
+#define P2_HUMAN            0
+#define P2_CPU1             1
+#define P2_CPU2             2
+
+unsigned char p1_gx, p1_gy, p1_x, p1_y, p2_gx, p2_gy, p2_x, p2_y, p3_y, p1_state, p2_state;
 unsigned char p1_block_high, p1_block_low, p2_block_high, p2_block_low, p1_blocking, p2_blocking;
 unsigned char counter, p1_step, p2_step, p1_max_step, p2_max_step, p1_strike, p2_strike, p1_health, p2_health, p1_win, p2_win;
 SpriteSlot p1_sprite, p2_sprite, bg_sprite;
 unsigned char *p1_gtx, *p2_gtx, *p1_frame, *p2_frame;
-unsigned char tmp, game_over, animation_over;
+unsigned char tmp, button_down, game_over, animation_over;
+unsigned char p2_controls, ai_strategy;
 
 unsigned char max_step[10] = {
     5,      // Idle
@@ -91,6 +104,7 @@ int main () {
     SpriteSlot ko2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__ko2_bmp_load_list);
 
     init_music();
+    p2_controls = P2_HUMAN;
 
     // Forever loop
     while (1) {
@@ -114,11 +128,96 @@ int main () {
     // Wait until the player releases any button
     wait_release_buttons();
 
+    // Game options
+    button_down = 0;
+    animation_over = 0;
+    p2_controls = P2_HUMAN;
+    p1_y = 49;
+    p2_y = 134;
+    p3_y = 219;
+
+    while (1) {
+        queue_clear_screen(0);
+        queue_draw_box(0, 0, 127, 127, 32);
+        queue_draw_sprite(2,49,50,30,0,60,elts_sprite);     // Player 1
+        queue_draw_sprite(54,54,20,20,50,60,elts_sprite);     // vs
+        queue_draw_sprite(42, 84, 44, 33, 0, 90, elts_sprite);  // Instructions
+
+        queue_draw_sprite(77,p1_y,50,30,0,60,elts_sprite);  // Player 2
+        queue_draw_sprite(81,p2_y,40,30,70,50,elts_sprite); // CPU 1
+        queue_draw_sprite(81,p3_y,40,30,70,80,elts_sprite); // CPU 2
+
+        queue_clear_border(0);
+
+        if (animation_over == 1) {
+            p1_y -= 5;
+            p2_y -= 5;
+            p3_y -= 5;
+            counter++;
+            if (counter == 17) {
+                if (p1_y == 50) {
+                    p1_y--;
+                    p2_y--;
+                    p3_y--;
+                }
+                animation_over = 0;
+            }
+        } else if (animation_over == 2) {
+            p1_y += 5;
+            p2_y += 5;
+            p3_y += 5;
+            counter++;
+            if (counter == 17) {
+                if (p1_y == 48) {
+                    p1_y++;
+                    p2_y++;
+                    p3_y++;
+                }
+                animation_over = 0;
+            }
+        } else {
+            update_inputs();
+            if (!(player1_buttons & INPUT_MASK_ANY_DIRECTION)) {
+                button_down = 0;
+            } else if (!button_down) {
+                button_down = 1;
+                if (player1_buttons & INPUT_MASK_UP) {
+                    counter = 0;
+                    animation_over = 1;
+                    if (p2_controls == P2_CPU2) {
+                        p2_controls = P2_HUMAN;
+                    } else {
+                        p2_controls++;
+                    }
+                } else if (player1_buttons & INPUT_MASK_DOWN) {
+                    counter = 0;
+                    animation_over = 2;
+                    if (p2_controls) {
+                        p2_controls--;
+                    } else {
+                        p2_controls = P2_CPU2;
+                    }
+                }
+            }
+            if (player1_buttons & INPUT_MASK_A) {
+                break;
+            }
+        }
+
+        await_draw_queue();
+        await_vsync(1);
+        flip_pages();
+    }
+    
+    // Wait until the player releases any button
+    wait_release_buttons();
+    
     reset_players();
     p1_win = 0;
     p2_win = 0;
     game_over = 0;
     animation_over = 0;
+    ai_strategy = AI_NONE;
     SET_P1_STATE(STATE_IDLE, idle1_sprite);
     SET_P2_STATE(STATE_IDLE, idle2_sprite);
 
@@ -145,10 +244,10 @@ int main () {
 
         if (p1_state == STATE_KO) {
             queue_draw_sprite(14,48,  81,17, 0,20,elts_sprite);      // Player
-            queue_draw_sprite(100,42, 21,46, 109,20,elts_sprite);    // 2
+            queue_draw_sprite(100,42, 21,26, 109,20,elts_sprite);    // 2
         } else if (p2_state == STATE_KO) {
             queue_draw_sprite(14,48,  81,17, 0,20,elts_sprite);      // Player
-            queue_draw_sprite(100,42, 12,46, 90,20,elts_sprite);    // 1
+            queue_draw_sprite(100,42, 12,26, 90,20,elts_sprite);    // 1
         }
         if (game_over) {
             queue_draw_sprite(37,70,  53,20, 0,40,elts_sprite);    // Wins
@@ -202,6 +301,7 @@ int main () {
             break;
         }
 
+        // Player 1 controls
         p1_strike = 0;
         switch(p1_state) {
         case STATE_IDLE:
@@ -287,9 +387,48 @@ int main () {
             break;
         }
 
+        // Player2 controls
         p2_strike = 0;
         switch(p2_state) {
         case STATE_IDLE:
+            if (p2_controls == P2_CPU1) {
+                if (p1_state == STATE_KICK_HIGH || p1_state == STATE_PUNCH_HIGH) {
+                    SET_P2_STATE(STATE_BLOCK_HIGH, block2_sprite);
+                } else if (p1_state == STATE_KICK_LOW) {
+                    SET_P2_STATE(STATE_BLOCK_LOW, block2_sprite);
+                } else {
+                    if (!ai_strategy) {
+                        ai_strategy = (rnd() & 3) + 1;
+                        if (ai_strategy == 4) ai_strategy = AI_ATTACK_PUNCH;
+                        ai_strategy = AI_ATTACK_KICK_LOW;
+                    }
+                    if (ai_strategy == AI_ATTACK_PUNCH) {
+                        if (p1_x & 0x80 || (p2_x-p1_x >= 16)) {
+                            SET_P2_STATE(STATE_MOVE_LEFT, walk2_sprite);
+                        } else {
+                            ai_strategy = AI_NONE;
+                            SET_P2_STATE(STATE_PUNCH_HIGH, punch2_sprite);
+                        }
+                    } else if (ai_strategy == AI_ATTACK_KICK_HIGH) {
+                        if (p1_x & 0x80 || (p2_x-p1_x >= 20)) {
+                            SET_P2_STATE(STATE_MOVE_LEFT, walk2_sprite);
+                        } else {
+                            ai_strategy = AI_NONE;
+                            SET_P2_STATE(STATE_KICK_HIGH, kickhigh2_sprite);
+                        }
+                    } else if (ai_strategy == AI_ATTACK_KICK_LOW) {
+                        if (p1_x & 0x80 || (p2_x-p1_x >= 22)) {
+                            SET_P2_STATE(STATE_MOVE_LEFT, walk2_sprite);
+                        } else {
+                            ai_strategy = AI_NONE;
+                            SET_P2_STATE(STATE_KICK_LOW, kicklow2_sprite);
+                        }
+                    }
+                }
+            } else if (p2_controls == P2_CPU2) {
+            // Human control
+            } else {
+            
             if (player2_buttons & INPUT_MASK_RIGHT) {
                 SET_P2_STATE(STATE_MOVE_RIGHT, walk2_sprite);
             } else if (player2_buttons & INPUT_MASK_LEFT) {
@@ -314,6 +453,7 @@ int main () {
                     p2_gy = 40;
                 }
             }            
+            }
             break;
         case STATE_MOVE_RIGHT:
             if (!(counter & 7) && (p2_x < 96)) {
