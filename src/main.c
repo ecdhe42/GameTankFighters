@@ -38,6 +38,9 @@ SpriteSlot p1_sprite, p2_sprite, bg_sprite;
 unsigned char *p1_gtx, *p2_gtx, *p1_frame, *p2_frame;
 unsigned char tmp, button_down, game_over, animation_over;
 unsigned char p2_controls, ai_strategy;
+SpriteSlot loading_sprite, elts_sprite, splash_sprite, bg1_sprite, bg2_sprite;
+SpriteSlot idle1_sprite, walk1_sprite, kickhigh1_sprite, kicklow1_sprite, punch1_sprite, block1_sprite, hit1_sprite, ko1_sprite;
+SpriteSlot idle2_sprite, walk2_sprite, kickhigh2_sprite, kicklow2_sprite, punch2_sprite, block2_sprite, hit2_sprite, ko2_sprite;
 
 unsigned char max_step[10] = {
     5,      // Idle
@@ -78,30 +81,59 @@ void wait_release_buttons() {
     }
 }
 
+void draw_progress(int nb) {
+    queue_clear_screen(0);
+    queue_draw_sprite(34,58,64,12,0,0,elts_sprite);  // Empty health bars
+    queue_draw_sprite(38,65,nb,4,4,14,elts_sprite);
+    queue_clear_border(0);
+    await_draw_queue();
+    await_vsync(1);
+    flip_pages();
+}
+
 int main () {
- 
-    SpriteSlot splash_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__splash_bmp_load_list);
-    SpriteSlot bg1_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__dojo_bmp_load_list);
-    SpriteSlot bg2_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__background2_bmp_load_list);
-    SpriteSlot elts_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__sprites_bmp_load_list);
+    elts_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__sprites_bmp_load_list);
+    draw_progress(3);
+    splash_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__splash_bmp_load_list);
+    draw_progress(6);
+    bg1_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__dojo_bmp_load_list);
+    draw_progress(9);
+    bg2_sprite = allocate_sprite((SpritePage *)&ASSET__gt_fighters__background2_bmp_load_list);
+    draw_progress(12);
 
-    SpriteSlot idle1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__idle1_bmp_load_list);
-    SpriteSlot walk1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__walk1_bmp_load_list);
-    SpriteSlot kickhigh1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__kickhigh1_bmp_load_list);
-    SpriteSlot kicklow1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__kicklow1_bmp_load_list);
-    SpriteSlot punch1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__punch1_bmp_load_list);
-    SpriteSlot block1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__block1_bmp_load_list);
-    SpriteSlot hit1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__hit1_bmp_load_list);
-    SpriteSlot ko1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__ko1_bmp_load_list);
+    idle1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__idle1_bmp_load_list);
+    draw_progress(15);
+    walk1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__walk1_bmp_load_list);
+    draw_progress(18);
+    kickhigh1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__kickhigh1_bmp_load_list);
+    draw_progress(21);
+    kicklow1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__kicklow1_bmp_load_list);
+    draw_progress(24);
+    punch1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__punch1_bmp_load_list);
+    draw_progress(27);
+    block1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__block1_bmp_load_list);
+    draw_progress(30);
+    hit1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__hit1_bmp_load_list);
+    draw_progress(33);
+    ko1_sprite = allocate_sprite((SpritePage *)&ASSET__player1__ko1_bmp_load_list);
+    draw_progress(36);
 
-    SpriteSlot idle2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__idle2_bmp_load_list);
-    SpriteSlot walk2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__walk2_bmp_load_list);
-    SpriteSlot kickhigh2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__kickhigh2_bmp_load_list);
-    SpriteSlot kicklow2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__kicklow2_bmp_load_list);
-    SpriteSlot punch2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__punch2_bmp_load_list);
-    SpriteSlot block2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__block2_bmp_load_list);
-    SpriteSlot hit2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__hit2_bmp_load_list);
-    SpriteSlot ko2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__ko2_bmp_load_list);
+    idle2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__idle2_bmp_load_list);
+    draw_progress(39);
+    walk2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__walk2_bmp_load_list);
+    draw_progress(42);
+    kickhigh2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__kickhigh2_bmp_load_list);
+    draw_progress(45);
+    kicklow2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__kicklow2_bmp_load_list);
+    draw_progress(48);
+    punch2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__punch2_bmp_load_list);
+    draw_progress(51);
+    block2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__block2_bmp_load_list);
+    draw_progress(54);
+    hit2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__hit2_bmp_load_list);
+    draw_progress(56);
+    ko2_sprite = allocate_sprite((SpritePage *)&ASSET__player2__ko2_bmp_load_list);
+    draw_progress(58);
 
     init_music();
     p2_controls = P2_HUMAN;
@@ -231,13 +263,13 @@ int main () {
     while (1) {
 //        queue_clear_screen(3);
         queue_draw_sprite(0,0,127,127,0,0,bg_sprite); // Background
-        queue_draw_sprite(0,15,127,6,0,5,elts_sprite);  // Empty health bars
+        queue_draw_sprite(0,15,127,6,0,6,elts_sprite);  // Empty health bars
         if (p1_health) {
-            queue_draw_sprite(4,16,p1_health,4,4,13,elts_sprite);  // Player 1 health bar
+            queue_draw_sprite(4,16,p1_health,4,4,14,elts_sprite);  // Player 1 health bar
         }
         if (p2_health) {
             tmp = 70+58-p2_health;
-            queue_draw_sprite(tmp,16,p2_health,4,tmp,13,elts_sprite);    // Player 2 health bar
+            queue_draw_sprite(tmp,16,p2_health,4,tmp,14,elts_sprite);    // Player 2 health bar
         }
         queue_draw_sprite(p1_x, 60, 42, 40, p1_gx, p1_gy, p1_sprite);   // Player 1
         queue_draw_sprite(p2_x, 60, 42, 40, p2_gx, p2_gy, p2_sprite);   // Player 2
@@ -333,10 +365,12 @@ int main () {
         case STATE_MOVE_RIGHT:
             if (!(counter & 7) && ((p1_x & 0x80) || ((p1_x < 70) && (p1_x < p2_x - 10)))) {
                 p1_x++;
+                p1_x++;
             }
             break;
         case STATE_MOVE_LEFT:
             if (!(counter & 7) && (p1_x > 246 || !(p1_x & 0x80))) {
+                p1_x--;
                 p1_x--;
             }
             break;
@@ -488,10 +522,12 @@ int main () {
         case STATE_MOVE_RIGHT:
             if (!(counter & 7) && (p2_x < 96)) {
                 p2_x++;
+                p2_x++;
             }
             break;
         case STATE_MOVE_LEFT:
             if (!(counter & 7) && (p2_x > 16) && ((p2_x > p1_x + 10) || (p1_x & 0x80))) {
+                p2_x--;
                 p2_x--;
             }
             break;
