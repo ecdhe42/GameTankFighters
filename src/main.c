@@ -399,8 +399,9 @@ int main () {
                 } else {
                     if (!ai_strategy) {
                         ai_strategy = (rnd() & 3) + 1;
-                        if (ai_strategy == 4) ai_strategy = AI_ATTACK_PUNCH;
-                        ai_strategy = AI_ATTACK_KICK_LOW;
+                        if (ai_strategy == 4) {
+                            ai_strategy = AI_ATTACK_PUNCH;
+                        }
                     }
                     if (ai_strategy == AI_ATTACK_PUNCH) {
                         if (p1_x & 0x80 || (p2_x-p1_x >= 16)) {
@@ -426,6 +427,35 @@ int main () {
                     }
                 }
             } else if (p2_controls == P2_CPU2) {
+                if (!ai_strategy) {
+                    ai_strategy = (rnd() & 3) + 1;
+                    if (ai_strategy == 4) {
+                        ai_strategy = AI_ATTACK_PUNCH;
+                    }
+                    ai_strategy = AI_ATTACK_KICK_LOW;
+                }
+                if (ai_strategy == AI_ATTACK_PUNCH) {
+                    if (p1_x & 0x80 || (p2_x-p1_x >= 16)) {
+                        SET_P2_STATE(STATE_MOVE_LEFT, walk2_sprite);
+                    } else {
+                        ai_strategy = AI_NONE;
+                        SET_P2_STATE(STATE_PUNCH_HIGH, punch2_sprite);
+                    }
+                } else if (ai_strategy == AI_ATTACK_KICK_HIGH) {
+                    if (p1_x & 0x80 || (p2_x-p1_x >= 20)) {
+                        SET_P2_STATE(STATE_MOVE_LEFT, walk2_sprite);
+                    } else {
+                        ai_strategy = AI_NONE;
+                        SET_P2_STATE(STATE_KICK_HIGH, kickhigh2_sprite);
+                    }
+                } else if (ai_strategy == AI_ATTACK_KICK_LOW) {
+                    if (p1_x & 0x80 || (p2_x-p1_x >= 23)) {
+                        SET_P2_STATE(STATE_MOVE_LEFT, walk2_sprite);
+                    } else {
+                        ai_strategy = AI_NONE;
+                        SET_P2_STATE(STATE_KICK_LOW, kicklow2_sprite);
+                    }
+                }
             // Human control
             } else {
             
